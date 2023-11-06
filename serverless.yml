@@ -1,0 +1,163 @@
+org: igorkjetkovikj
+app: sourcico-test-app
+service: sourcico-test-app
+frameworkVersion: '3'
+
+custom:
+  dynamodb:
+    start:
+      migrate: true
+    stages:
+      - dev
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  region: eu-central-1
+  environment:
+    COMPANY_TABLE_NAME: Company
+    USER_TABLE_NAME: User
+    VULNERABILITY_TABLE_NAME: Vulnerability
+    REGION: eu-central-1
+    BUCKET_NAME: aggregated-vulnerability-data
+  iam:
+        role:
+            statements:
+                - Effect: Allow
+                  Action:
+                      - dynamodb:Query
+                      - dynamodb:Scan
+                      - dynamodb:GetItem
+                      - dynamodb:PutItem
+                      - dynamodb:UpdateItem
+                      - dynamodb:DeleteItem
+                      - s3:GetObject
+                      - s3:ListBucket
+                      - s3:CreateBucket
+                      - s3:PutObject
+                      - dynamodb:BatchWriteItem
+                  Resource:
+                      [
+                          !Sub "arn:aws:dynamodb:eu-central-1:*:table/CompanyTable",
+                          !Sub "arn:aws:dynamodb:eu-central-1:*:table/UserTable",
+                          !Sub "arn:aws:dynamodb:eu-central-1:*:table/VulnerabilityTable",
+                          !Sub "arn:aws:s3:::aggregated-vulnerability-data/*"
+                      ]                            
+
+resources:
+  Resources:
+    AggregatedDataBucket:
+      Type: 'AWS::S3::Bucket'
+      Properties:
+        BucketName: aggregated-vulnerability-data
+    CompanyTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: Company
+        AttributeDefinitions:
+          - AttributeName: companyId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: companyId
+            KeyType: HASH
+        BillingMode: PAY_PER_REQUEST
+
+    UserTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: User
+        AttributeDefinitions:
+          - AttributeName: userId
+            AttributeType: S
+          - AttributeName: companyId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: userId
+            KeyType: HASH
+          - AttributeName: companyId
+            KeyType: RANGE
+        GlobalSecondaryIndexes:
+          - IndexName: CompanyIdIndex
+            KeySchema:
+              - AttributeName: companyId
+                KeyType: HASH
+            Projection:
+              ProjectionType: KEYS_ONLY
+        BillingMode: PAY_PER_REQUEST
+
+    VulnerabilityTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: Vulnerability
+        AttributeDefinitions:
+          - AttributeName: vulnerabilityId
+            AttributeType: S
+          - AttributeName: packageName
+            AttributeType: S
+          - AttributeName: packageVersion
+            AttributeType: S
+        KeySchema:
+          - AttributeName: vulnerabilityId
+            KeyType: HASH
+          - AttributeName: packageName
+            KeyType: RANGE
+        GlobalSecondaryIndexes:
+          - IndexName: PackageNameVersionIndex
+            KeySchema:
+              - AttributeName: packageName
+                KeyType: HASH
+              - AttributeName: packageVersion
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
+        BillingMode: PAY_PER_REQUEST
+
+
+functions:
+  dataAggregatorCronjob:
+    handler: src/functions/dataAggregatorCronjob.handler
+    memorySize: 128
+    description: "Aggregate package vulnerability and user data for companies and write log to S3"
+    timeout: 300
+    events:
+      - schedule:
+          rate: cron(0 0 * * ? *)
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - dynamodb:Query
+          - dynamodb:Scan
+          - dynamodb:GetItem
+          - dynamodb:PutItem
+          - dynamodb:UpdateItem
+          - dynamodb:DeleteItem
+          - s3:GetObject
+          - s3:ListBucket
+          - s3:CreateBucket
+          - s3:PutObject
+          - dynamodb:BatchWriteItem
+        Resource:
+          - "arn:aws:dynamodb:${self:provider.region}:*:table/CompanyTable"
+          - "arn:aws:dynamodb:${self:provider.region}:*:table/UserTable"
+          - "arn:aws:dynamodb:${self:provider.region}:*:table/VulnerabilityTable"
+          - "arn:aws:s3:::aggregated-vulnerability-data/*"
+          - "arn:aws:dynamodb:${self:provider.region}:*:table/Vulnerability/index/PackageNameVersionIndex"
+  getAggregatedDataForCompany:
+    handler: src/functions/getAggregatedDataForCompany.handler
+    memorySize: 128
+    description: Get aggregated data for a company within a given timeframe
+    timeout: 300
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - s3:GetObject
+          - s3:ListBucket
+          - s3:CreateBucket
+          - s3:PutObject
+        Resource:
+          - "arn:aws:s3:::aggregated-vulnerability-data/*"
+
+plugins:
+  - serverless-dynamodb-local
+  - serverless-offline
+  - serverless-plugin-typescript
