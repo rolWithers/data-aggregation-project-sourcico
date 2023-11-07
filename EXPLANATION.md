@@ -23,6 +23,16 @@ serverless.yml configuration for CloudFormation Stack deployment of resources an
             - AttributeName: companyId
               KeyType: HASH
           BillingMode: PAY_PER_REQUEST
+  Company example:
+  {
+    companyId: "213f8ce7-8cf7-44c1-bdf4-4db2e5ee814f",
+    companyName: "company1",
+    packages: {
+      "package1": "0.1.0",
+      "package2": "1.2.10",
+      "package3": "0.2.0"
+    }
+  }
 
   UserTable:
       Type: AWS::DynamoDB::Table
@@ -39,6 +49,11 @@ serverless.yml configuration for CloudFormation Stack deployment of resources an
           - AttributeName: companyId
             KeyType: RANGE
         BillingMode: PAY_PER_REQUEST
+  User example:
+  {
+    userId: "364a2aed-aa9f-4688-8b9f-5206043e1bdc",
+    companyId: "213f8ce7-8cf7-44c1-bdf4-4db2e5ee814f"
+  }
 
   VulnerabilityTable:
       Type: AWS::DynamoDB::Table
@@ -66,6 +81,16 @@ serverless.yml configuration for CloudFormation Stack deployment of resources an
             Projection:
               ProjectionType: ALL
         BillingMode: PAY_PER_REQUEST
+  Vulnerability example:
+  {
+  "vulnerabilityId": "1b6f5417-f98d-4dd1-8d87-2fcbf7bcd78a",
+  "packageName": "package1",
+  "description": "test description",
+  "packageType": "npm",
+  "packageVersion": "0.1.0",
+  "severity": "high",
+  "vulnerabilityCode": "CVE-2020-28473"
+}
 
 2 Lambda functions:
   dataAggregatorCronjob function, has a cronjob Event that triggers once every 24 hours, no input or output parameters. Fetches all companies, aggregates data and stores the JSON result in the S3 bucket
