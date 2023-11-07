@@ -141,6 +141,7 @@ functions:
           - "arn:aws:dynamodb:${self:provider.region}:*:table/UserTable"
           - "arn:aws:dynamodb:${self:provider.region}:*:table/VulnerabilityTable"
           - "arn:aws:s3:::aggregated-vulnerability-data/*"
+          - "arn:aws:s3:::aggregated-vulnerability-data"
           - "arn:aws:dynamodb:${self:provider.region}:*:table/Vulnerability/index/PackageNameVersionIndex"
   getAggregatedDataForCompany:
     handler: src/functions/getAggregatedDataForCompany.handler
@@ -154,8 +155,10 @@ functions:
           - s3:ListBucket
           - s3:CreateBucket
           - s3:PutObject
+          - s3:*
         Resource:
           - "arn:aws:s3:::aggregated-vulnerability-data/*"
+          - "arn:aws:s3:::aggregated-vulnerability-data"
 
 plugins:
   - serverless-dynamodb-local
